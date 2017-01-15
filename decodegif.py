@@ -17,38 +17,80 @@ def Main( filename ):
 #		for i in gtable:
 #			print(i)
 
-		next = file.read(1)
+		image_separator = file.read(1)[0]
+		if(image_separator == 0x21):
+			#TODO technically x21 just marks the beginning of an extension
+			#block. Not necessarily a graphics control extension
+			graphic_control = GraphicControlExtension( file )
 
-		ImageDescriptor( file, screen, image, gtable )
+		if(file.read(1)[0] == 0x2C):
+			ImageDescriptor( file, screen, image, gtable )
 
 	finally:
 		file.close()
 
+def GraphicControlExtension( file ):
+	label = file.read(1)[0]
+	if(label != 0xF9):
+		print("ERROR: ATTEMPTING TO DECODE NON-GRAPHICS CONTROL EXTENSION")
+		exit(1)
+
+	#Assume at this point we are in a graphics control extension
+	block_size = file.read(1)[0]
+	packedfield = file.read(1)[0]
+	reserved 	=  (packedfield & 0xE0) >> 5
+	disposal    =  (packedfield & 0x1C) >> 2
+	inputflag   =  (packedfield & 0x02) >> 1
+	transparent =  (packedfield & 0x01)
+
+	delaytime = file.read(2)
+	delaytime = delaytime[0] + (delaytime[1]*2**8)
+	transindex = file.read(1)[0]
+
+	terminator = file.read(1)
+
+	print("disposal : ", disposal)
+	print("inputflag: ", inputflag)
+	print("transparent: ", transparent)
+	print("delaytime: ", delaytime)
+	print("transindex: ", transindex)
+
+	graphics_control = {}
+	graphics_control["reserved"]    = reserved
+	graphics_control["disposal"]    = disposal
+	graphics_control["inputflag"]   = inputflag
+	graphics_control["transparent"] = transparent
+	graphics_control["delaytime"]   = delaytime
+	graphics_control["transindex"]  = transindex
+
+	return graphics_control
+
 def DecodeImage( colortable, file, screen ):
-	minsize = file.read(1)
+	minsize = file.read(1)[0]
 	print("minimum size is: ", minsize)
 	return 1
 
 def ImageDescriptor(file, screen, image, gtable):
+	print("--- Image Descriptor ---")
 	leftpos   = file.read(2)
 	toppos    = file.read(2)
 	width     = file.read(2)
 	height    = file.read(2)
 	pckdfield = file.read(1)
 
-	localtable = (pckdfield)        >> 7
-	interlaced = (pckdfield & 0x40) >> 6
-	sortedflag = (pckdfield & 0x20) >> 5
-	reserved   = (pckdfield & 0x18) >> 3
-	ltablesize = (pckdfield & 0x07)
+	localtable = (pckdfield[0] & 0xFF) >> 7
+	interlaced = (pckdfield[0] & 0x40) >> 6
+	sortedflag = (pckdfield[0] & 0x20) >> 5
+	reserved   = (pckdfield[0] & 0x18) >> 3
+	ltablesize = (pckdfield[0] & 0x07)
 	ltablesize = 2**(ltablesize+1)
 
 	if localtable > 0:
 		localcolor = CreateColorTable( ltablesize, file )
-		print("1")
+		print("Local table flag: 1")
 		imagechunk = DecodeImage( localcolor, file, screen )
 	else:
-		print("1")
+		print("Local table flag: 0")
 		imagechunk = DecodeImage( gtable, file, screen )
 
 def CreateColorTable(size, file):
@@ -61,6 +103,7 @@ def CreateColorTable(size, file):
 	return table
 
 def DecodeScreenDescriptor( gif ):
+	print("--- Screen Descriptor ---")
 	screen = {}
 	width = gif.read(2)
 	assert( width != 0x00 )
