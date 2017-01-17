@@ -68,7 +68,9 @@ def GraphicControlExtension( file ):
 def DecodeImage( colortable, file, screen ):
 	minsize = file.read(1)[0]
 	print("minimum size is: ", minsize)
-	return 1
+	cur_block_size = file.read(1)[0]
+	print("This block's size: ", cur_block_size)
+	return 0
 
 def ImageDescriptor(file, screen, image, gtable):
 	print("--- Image Descriptor ---")
